@@ -116,21 +116,26 @@ public class CarritoController {
     }
 
     @PostMapping("/finalizar")
-    public String finalizarCompra(HttpSession session, RedirectAttributes redirectAttributes) {
+    @ResponseBody
+    public ResponseEntity<?> finalizarCompra(HttpSession session) {
         Usuario usuarioLogueado = (Usuario) session.getAttribute("usuarioLogueado");
+        Map<String, Object> response = new HashMap<>();
 
         if (usuarioLogueado == null) {
-            redirectAttributes.addFlashAttribute("mensajeError", "Debes iniciar sesión");
-            return "redirect:/";
+            response.put("success", false);
+            response.put("message", "Debes iniciar sesión");
+            return ResponseEntity.ok(response);
         }
 
         try {
             carritoService.finalizarCompra(usuarioLogueado.getId());
-            redirectAttributes.addFlashAttribute("mensajeExito", "¡Compra realizada exitosamente!");
-            return "redirect:/";
+            response.put("success", true);
+            response.put("message", "Compra realizada exitosamente");
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            redirectAttributes.addFlashAttribute("mensajeError", "Error al procesar la compra: " + e.getMessage());
-            return "redirect:/productos";
+            response.put("success", false);
+            response.put("message", "Error al procesar la compra: " + e.getMessage());
+            return ResponseEntity.ok(response);
         }
     }
 

@@ -68,7 +68,7 @@ public class CarritoService {
             cantidadTotal += itemExistente.get().getCantidad();
         }
 
-        // Verificar stock con la cantidad total
+        // Verificar stock con la cantidad total (sin reducir el stock real todavía)
         if (!productoService.verificarStock(productoId, cantidadTotal)) {
             throw new RuntimeException("No hay suficiente stock disponible. Stock actual: " + producto.getStock());
         }
@@ -128,27 +128,32 @@ public class CarritoService {
             throw new RuntimeException("El carrito está vacío");
         }
 
+        // Verificar stock antes de procesar
         for (utp.workpagespringutp.model.ItemCarrito item : carrito.getItemCarritos()) {
             if (!productoService.verificarStock(item.getProducto().getId(), item.getCantidad())) {
                 throw new RuntimeException("No hay suficiente stock para: " + item.getProducto().getNombre());
             }
         }
 
+        // Crear la factura
         Factura factura = new Factura();
         factura.setUsuario(carrito.getUsuario());
         factura.setFecha(LocalDate.now());
         factura.setDescripcion("Compra realizada");
 
-        for (utp.workpagespringutp.model.ItemCarrito item : carrito.getItemCarritos()) {
+        // Agregar detalles y reducir stock
+        for (ItemCarrito item : carrito.getItemCarritos()) {
             DetalleFactura detalle = new DetalleFactura();
             detalle.setProductoNombre(item.getProducto().getNombre());
             detalle.setCantidad(item.getCantidad());
             detalle.setPrecioUnitario(BigDecimal.valueOf(item.getProducto().getPrecio()));
             factura.addDetalleFactura(detalle);
 
+            // AQUÍ es donde se reduce el stock real
             productoService.reducirStock(item.getProducto().getId(), item.getCantidad());
         }
 
+        // Guardar factura y vaciar carrito
         facturaRepository.save(factura);
         carrito.vaciarCarrito();
         carritoRepository.save(carrito);

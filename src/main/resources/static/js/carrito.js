@@ -36,7 +36,7 @@ function cargarCarrito() {
     fetch('/carrito/datos')
         .then(response => response.json())
         .then(data => {
-            console.log('Datos del carrito:', data); // Para debug
+            console.log('Datos del carrito:', data);
 
             if (!data.items || data.items.length === 0) {
                 document.getElementById('carritoVacio').style.display = 'block';
@@ -197,18 +197,44 @@ function cambiarCantidad(itemId, nuevaCantidad) {
     });
 }
 
-// Función para finalizar compra
+// Función para finalizar compra - CORREGIDA COMPLETAMENTE
 function finalizarCompra() {
+    console.log('Iniciando proceso de finalizar compra...');
+
+    // Verificar que el modal existe en el DOM
+    const modalElement = document.getElementById('resumenCompraModal');
+    if (!modalElement) {
+        console.error('ERROR: No se encuentra el modal resumenCompraModal en el DOM');
+        mostrarAlerta('Error: Modal no encontrado', 'danger');
+        return;
+    }
+
+    const resumenProductos = document.getElementById('resumenProductos');
+    if (!resumenProductos) {
+        console.error('ERROR: No se encuentra el elemento resumenProductos en el DOM');
+        mostrarAlerta('Error: Elemento resumen no encontrado', 'danger');
+        return;
+    }
+
+    const totalPagado = document.getElementById('totalPagado');
+    if (!totalPagado) {
+        console.error('ERROR: No se encuentra el elemento totalPagado en el DOM');
+        mostrarAlerta('Error: Elemento total no encontrado', 'danger');
+        return;
+    }
+
+    // Obtener los datos del carrito actuales
     fetch('/carrito/datos')
         .then(response => response.json())
         .then(data => {
-            if (data.items.length === 0) {
+            console.log('Datos recibidos:', data);
+
+            if (!data.items || data.items.length === 0) {
                 mostrarAlerta('El carrito está vacío', 'warning');
                 return;
             }
 
-            // Mostrar resumen en el modal
-            const resumenProductos = document.getElementById('resumenProductos');
+            // Guardar los datos del resumen antes de procesar la compra
             resumenProductos.innerHTML = '';
             let total = 0;
 
@@ -227,37 +253,94 @@ function finalizarCompra() {
                 resumenProductos.insertAdjacentHTML('beforeend', filaHTML);
             });
 
-            document.getElementById('totalPagado').textContent = total.toFixed(2);
+            totalPagado.textContent = total.toFixed(2);
+            console.log('Resumen preparado, total:', total);
 
-            // Cerrar offcanvas y mostrar modal de resumen
-            const offcanvas = bootstrap.Offcanvas.getInstance(document.getElementById('carritoOffcanvas'));
-            offcanvas.hide();
-
-            const resumenModal = new bootstrap.Modal(document.getElementById('resumenCompraModal'));
-            resumenModal.show();
-
-            // Procesar la compra
-            fetch('/carrito/finalizar', {
-                method: 'POST'
-            })
-            .then(response => {
-                if (response.redirected) {
-                    window.location.href = response.url;
+            // AHORA procesamos la compra
+            console.log('Enviando petición a /carrito/finalizar...');
+            return fetch('/carrito/finalizar', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                mostrarAlerta('Error al procesar la compra', 'danger');
             });
+        })
+        .then(response => {
+            if (!response) {
+                throw new Error('No hay respuesta del servidor');
+            }
+            console.log('Respuesta de /carrito/finalizar recibida');
+            return response.json();
+        })
+        .then(result => {
+            console.log('Resultado de finalizar:', result);
+
+            if (result.success) {
+                console.log('Compra exitosa, cerrando offcanvas...');
+
+                // Cerrar offcanvas
+                const offcanvasElement = document.getElementById('carritoOffcanvas');
+                const offcanvas = bootstrap.Offcanvas.getInstance(offcanvasElement);
+                if (offcanvas) {
+                    offcanvas.hide();
+                }
+
+                console.log('Mostrando modal de resumen...');
+                // Mostrar modal de resumen
+                const resumenModal = new bootstrap.Modal(document.getElementById('resumenCompraModal'));
+                resumenModal.show();
+
+                // Actualizar contador del carrito a 0
+                actualizarContadorCarrito(0);
+
+                // Recargar página cuando se cierre el modal
+                const modalElement = document.getElementById('resumenCompraModal');
+                modalElement.addEventListener('hidden.bs.modal', function () {
+                    console.log('Modal cerrado, recargando página...');
+                    window.location.reload();
+                }, { once: true });
+
+            } else {
+                console.error('Error en la compra:', result.message);
+                mostrarAlerta(result.message || 'Error al procesar la compra', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error completo:', error);
+            mostrarAlerta('Error al procesar la compra: ' + error.message, 'danger');
         });
 }
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM cargado, inicializando event listeners...');
+
+    // Verificar que todos los elementos necesarios existen
+    const elementosRequeridos = [
+        'carritoOffcanvas',
+        'btnFinalizarCompra',
+        'resumenCompraModal',
+        'resumenProductos',
+        'totalPagado',
+        'listaProductosCarrito',
+        'totalCarrito',
+        'cantidadCarrito'
+    ];
+
+    elementosRequeridos.forEach(id => {
+        const elemento = document.getElementById(id);
+        if (!elemento) {
+            console.error(`ADVERTENCIA: No se encuentra el elemento con ID: ${id}`);
+        } else {
+            console.log(`✓ Elemento encontrado: ${id}`);
+        }
+    });
+
     // Cargar carrito al abrir el offcanvas
     const carritoOffcanvas = document.getElementById('carritoOffcanvas');
     if (carritoOffcanvas) {
         carritoOffcanvas.addEventListener('show.bs.offcanvas', function() {
+            console.log('Offcanvas abierto, cargando carrito...');
             cargarCarrito();
         });
     }
@@ -265,11 +348,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Botón finalizar compra
     const btnFinalizarCompra = document.getElementById('btnFinalizarCompra');
     if (btnFinalizarCompra) {
-        btnFinalizarCompra.addEventListener('click', finalizarCompra);
+        console.log('Botón finalizar compra encontrado');
+        btnFinalizarCompra.addEventListener('click', function(e) {
+            console.log('Click en botón finalizar compra');
+            e.preventDefault();
+            finalizarCompra();
+        });
+    } else {
+        console.error('No se encontró el botón btnFinalizarCompra');
     }
 
     // Botones agregar al carrito
     const botonesAgregar = document.querySelectorAll('.agregar-carrito');
+    console.log('Botones agregar encontrados:', botonesAgregar.length);
     botonesAgregar.forEach(boton => {
         boton.addEventListener('click', function() {
             const productoId = this.getAttribute('data-producto-id');
@@ -279,6 +370,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Cargar contador inicial si hay sesión
     if (verificarSesion()) {
+        console.log('Usuario logueado, actualizando contador inicial...');
         actualizarContadorInicial();
     }
 });
