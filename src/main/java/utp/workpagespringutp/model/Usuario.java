@@ -21,6 +21,7 @@ public class Usuario {
     private String password;
     private String email;
     private String nombreCompleto;
+    private String rol = "CLIENTE";
 
     @OneToOne(mappedBy = "usuario", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private Carrito carrito;
